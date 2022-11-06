@@ -9,8 +9,6 @@
 -- During input sequence ValidOut <= "000". During output sequence ReadyIn <= '0'. 
 -- No. of elements in input stream is unknown. Limited to 2**IndexSize-1. Default max is 512.
 -- No. of elements in heap and output sequence 2**ArrayAddressSize - 1. Default is 15.
-
-
 library IEEE;
 use IEEE.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -44,3 +42,135 @@ entity MinHeap is
     );
 end MinHeap;
 
+architecture rtl of MinHeap is 
+------------------------------------------------------------------------------------------------------------
+-- Function for calculating pointer
+------------------------------------------------------------------------------------------------------------
+function pointer_calculator_1 (pointer : integer) return integer is
+variable child1 : integer;
+begin
+
+    child1 := pointer*2 + 1;
+
+return child1;
+end function pointer_calculator_1;
+
+function pointer_calculator_2 (pointer : integer) return integer is
+variable child2 : integer;
+begin
+
+    child2 := pointer*2 + 2;
+
+return child2;
+end function pointer_calculator_2;
+------------------------------------------------------------------------------------------------------------
+-- Define signals
+------------------------------------------------------------------------------------------------------------
+type state_machine is (setup, idle, read, check_root, insert_root, get_child_value, check_children, one, two, done);
+signal state     : state_machine := setup;
+signal current   : std_logic_vector(16 - 1 downto 0);   -- current value
+signal child1    : integer;                             -- location of child 1
+signal child2    : integer;                             -- location of child 2
+signal v_child1  : std_logic_vector(16 - 1 downto 0);   -- value of child 1
+signal v_child2  : std_logic_vector(16 - 1 downto 0);   -- value of child 2
+signal pointer   : integer := 0;                        -- pointer
+signal flag      : std_logic;                           -- signal to indicate start & end
+
+type reg_type is array (15 - 1 downto 0) of std_logic_vector (16 - 1 downto 0); -- 16*15 bits
+signal ram : reg_type := (others => x"0000"); 
+
+begin
+
+process (all)
+begin
+    if (reset = '1') then
+        state <= setup;
+    elsif(rising_edge(clk)) then 
+
+		if (state = setup) then -- prefilling
+            ReadyIn <= '0';     -- no data from outside
+            ram(pointer) <= x"8000";
+            pointer <= pointer + 1;
+            if pointer = 14 then -- prefilling is done
+                state <= idle;
+            else
+                state <= setup;
+            end if;
+        elsif (state = idle) then
+            if ValidIn(2) = '1' then 
+                state <= read;
+                ReadyIn <= '1';
+            else
+                ReadyIn <= '0';
+            end if;
+        elsif (state = read) then
+            ReadyIn <= '0';
+            current <= DataIn;
+            flag <= ValidIn(0);
+            if flag = '1' then -- it's the last value
+                state <= done;
+            else
+                state <= check_root;
+            end if;
+        elsif (state = check_root) then
+            if signed(current) > signed(ram(0)) then
+                state <= insert_root;
+            else
+                current <= current;
+                state <= idle;
+            end if;
+        elsif (state = insert_root) then
+            ram(0) <= current; -- current is bigger, perform swap
+            pointer <= 0;
+            child1 <= 1;
+            child2 <= 2;
+            state <= get_child_value;
+        elsif (state = get_child_value) then
+            v_child1 <= ram(child1);
+            v_child2 <= ram(child2);
+            state <= check_children;
+        elsif (state = check_children) then 
+            if signed(v_child1) < signed(current) then -- the left is smaller
+                state <= one;
+            else
+                if signed(v_child2) < signed(current) then 
+                    state <= two;
+                else
+                    ReadyIn <= '1';
+                    state <= read;
+                end if;
+            end if;    
+        elsif (state = one) then
+            current <= current;
+            ram(child1) <= current;
+            ram(pointer) <= v_child1;
+            if child1 < 7 then
+                pointer <= child1;
+                child1 <= pointer_calculator_1(child1);
+                child2 <= pointer_calculator_2(child1);
+                state <= get_child_value;
+            else
+                ReadyIn <= '1';
+                state <= read;
+            end if;
+        elsif (state = two) then
+            current <= current;
+            ram(child2) <= current;
+            ram(pointer) <= v_child2;
+            if child2 < 8 then
+                pointer <= child2;
+                child1 <= pointer_calculator_1(child2);
+                child2 <= pointer_calculator_2(child2);
+                state <= get_child_value;
+            else
+                ReadyIn <= '1';
+                state <= read;
+            end if;
+        elsif (state = done) then
+
+
+		end if;
+
+    end if;
+end process;
+end architecture;
