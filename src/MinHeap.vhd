@@ -114,7 +114,7 @@ begin
                 state <= check_root;
             end if;
         when check_root =>
-            if signed(current) >= signed(ram(0)) then
+            if signed(current) > signed(ram(0)) then
                 state <= insert_root;
             else
                 current <= current;
