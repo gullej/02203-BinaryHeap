@@ -87,7 +87,8 @@ begin
         state <= setup;
     elsif(rising_edge(clk)) then 
 
-		if (state = setup) then -- prefilling
+        case state is
+		when setup => -- prefilling
             ReadyIn <= '0';     -- no data from outside
             ram(pointer) <= x"8000";
             pointer <= pointer + 1;
@@ -96,14 +97,14 @@ begin
             else
                 state <= setup;
             end if;
-        elsif (state = idle) then
+        when idle =>
             if ValidIn(2) = '1' then 
                 state <= read;
                 ReadyIn <= '1';
             else
                 ReadyIn <= '0';
             end if;
-        elsif (state = read) then
+        when read =>
             ReadyIn <= '0';
             current <= DataIn;
             flag <= ValidIn(0);
@@ -112,24 +113,24 @@ begin
             else
                 state <= check_root;
             end if;
-        elsif (state = check_root) then
+        when check_root =>
             if signed(current) > signed(ram(0)) then
                 state <= insert_root;
             else
                 current <= current;
                 state <= idle;
             end if;
-        elsif (state = insert_root) then
+        when insert_root =>
             ram(0) <= current; -- current is bigger, perform swap
             pointer <= 0;
             child1 <= 1;
             child2 <= 2;
             state <= get_child_value;
-        elsif (state = get_child_value) then
+        when get_child_value =>
             v_child1 <= ram(child1);
             v_child2 <= ram(child2);
             state <= check_children;
-        elsif (state = check_children) then 
+        when check_children =>
             if signed(v_child1) < signed(current) then -- the left is smaller
                 state <= one;
             else
@@ -140,7 +141,7 @@ begin
                     state <= read;
                 end if;
             end if;    
-        elsif (state = one) then
+        when one =>
             current <= current;
             ram(child1) <= current;
             ram(pointer) <= v_child1;
@@ -153,7 +154,7 @@ begin
                 ReadyIn <= '1';
                 state <= read;
             end if;
-        elsif (state = two) then
+        when two =>
             current <= current;
             ram(child2) <= current;
             ram(pointer) <= v_child2;
@@ -166,8 +167,8 @@ begin
                 ReadyIn <= '1';
                 state <= read;
             end if;
-        elsif (state = done) then
-
+        when done=>
+            ReadyOut = '1';
 
 		end if;
 
