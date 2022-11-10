@@ -167,10 +167,10 @@ begin
                 ReadyIn <= '1';
                 state <= read;
             end if;
-        when done=>
-            ReadyOut = '1';
-
-		end if;
+        when done =>
+            ValidOut <= "100";
+        end case;
+		
 
     end if;
 end process;
