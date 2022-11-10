@@ -114,11 +114,11 @@ begin
                 state <= check_root;
             end if;
         when check_root =>
-            if signed(current) > signed(ram(0)) then
+            if signed(current) >= signed(ram(0)) then
                 state <= insert_root;
             else
                 current <= current;
-                state <= idle;
+                state <= read;
             end if;
         when insert_root =>
             ram(0) <= current; -- current is bigger, perform swap
@@ -131,8 +131,13 @@ begin
             v_child2 <= ram(child2);
             state <= check_children;
         when check_children =>
-            if signed(v_child1) < signed(current) then -- the left is smaller
-                state <= one;
+            if signed(v_child1) <= signed(v_child2) then -- the left is smaller
+                if signed(v_child1) < signed(current) then 
+                    state <= one;
+                else
+                    ReadyIn <= '1';
+                    state <= read;
+                end if;
             else
                 if signed(v_child2) < signed(current) then 
                     state <= two;
