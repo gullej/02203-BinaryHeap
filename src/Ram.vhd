@@ -1,51 +1,71 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-use ieee.std_logic_unsigned.all;
+-- Dual-Port Block RAM with Two Write Ports
 
-entity Ram is
-port(
-    clk_ram    	: in  std_logic;
-    cs_ram      : in  std_logic;
-    read_ram_1  : in  std_logic; -- read flag 1
-    read_ram_2  : in  std_logic; -- read flag 2
-    write_ram   : in  std_logic; -- write flag
+-- Correct Modelization with a Shared Variable
 
-    write_addr  : in  std_logic_vector(15 - 1 downto 0); -- write address
+-- File: rams_tdp_rf_rf.vhd
 
-    read_addr_1 : in  std_logic_vector(15 - 1 downto 0); -- read address 1
-    read_addr_2 : in  std_logic_vector(15 - 1 downto 0);
+LIBRARY IEEE;
 
-    wrdata  	: in  std_logic_vector (7 - 1 downto 0); -- write data
+USE IEEE.std_logic_1164.ALL;
 
-    rddata_1  	: out std_logic_vector (7 - 1 downto 0);
-    rddata_2  	: out std_logic_vector (7 - 1 downto 0)
-	);
-end Ram;
+USE ieee.numeric_std.ALL;
 
-architecture rtl of Ram is
+ENTITY Ram IS
+    generic(
+        ArrayAddressSize: natural :=  4;
+            -- no of elements in heap/array is 2**ArrayAddressSize - 1
+        DataSize:     natural := 16;
+            -- Word size for data
+        IndexSize:    natural := 9
+            -- Word size for index. Default identifies up to 512 inputs 
+    );
+    PORT (
+        clka : IN STD_LOGIC;
+        clkb : IN STD_LOGIC;
+        ena : IN STD_LOGIC;
+        enb : IN STD_LOGIC;
+        wea : IN STD_LOGIC;
+        web : IN STD_LOGIC;
+        addra : integer;
+        addrb : integer;
+        dia : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+        dib : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+        doa : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+        dob : OUT STD_LOGIC_VECTOR(15 DOWNTO 0)
+    );
 
-type reg_type is array (16 - 1 downto 0) of std_logic_vector (15 - 1 downto 0); -- 15*16 bits
-signal reg : reg_type := (others => x"0000");
+END Ram;
 
-begin
+ARCHITECTURE syn OF Ram IS
 
-process (clk_ram)
-begin
-    if (clk_ram'event and clk_ram = '1') then
+    TYPE ram_type IS ARRAY ((ArrayAddressSize**2-1)-1 DOWNTO 0) OF STD_LOGIC_VECTOR(DataSize - 1 DOWNTO 0);
 
-        if (cs_ram = '0' and read_ram_1 = '1') then -- read data out of ram
-			rddata_1 <= reg(to_integer(unsigned(read_addr_1)));
-        end if;
+    SHARED VARIABLE RAM : ram_type;
 
-        if (cs_ram = '0' and read_ram_2 = '1') then -- read data out of ram
-			rddata_2 <= reg(to_integer(unsigned(read_addr_2)));
-        end if;
+BEGIN
 
-        if (cs_ram = '0' and write_ram = '1') then -- write data into ram
-			reg(to_integer(unsigned(write_addr))) <= wrdata;
-        end if;
-        
-    end if;
-end process;     
-end architecture;
+    PROCESS (CLKA)
+    BEGIN
+        IF rising_edge(CLKA) THEN
+            IF ENA = '1' THEN
+                IF WEA = '1' THEN
+                    RAM(ADDRA) := DIA;
+                END IF;
+            END IF;
+        END IF;
+    END PROCESS;
+    DOA <= RAM(ADDRA);
+
+    PROCESS (CLKB)
+    BEGIN
+        IF rising_edge(CLKB) THEN
+            IF ENB = '1' THEN
+                IF WEB = '1' THEN
+                    RAM(ADDRB) := DIB;
+                END IF;
+            END IF;
+        END IF;
+    END PROCESS;
+    DOB <= RAM(ADDRB);
+    
+END syn;

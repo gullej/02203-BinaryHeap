@@ -43,6 +43,31 @@ entity MinHeap is
 end MinHeap;
 
 architecture rtl of MinHeap is 
+
+    component RAM IS
+    --generic(
+    --    ArrayAddressSize: natural;
+    --        -- no of elements in heap/array is 2**ArrayAddressSize - 1
+    --    DataSize:     natural;
+    --        -- Word size for data
+    --    IndexSize:    natural
+    --        -- Word size for index. Default identifies up to 512 inputs 
+    --);
+    PORT (
+        clka : IN STD_LOGIC;
+        clkb : IN STD_LOGIC;
+        ena : IN STD_LOGIC;
+        enb : IN STD_LOGIC;
+        wea : IN STD_LOGIC;
+        web : IN STD_LOGIC;
+        addra : IN integer;
+        addrb : IN integer;
+        dia : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+        dib : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+        doa : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+        dob : OUT STD_LOGIC_VECTOR(15 DOWNTO 0)
+    );
+    end component;
 ------------------------------------------------------------------------------------------------------------
 -- Function for calculating pointer
 ------------------------------------------------------------------------------------------------------------
@@ -66,117 +91,220 @@ end function pointer_calculator_2;
 ------------------------------------------------------------------------------------------------------------
 -- Define signals
 ------------------------------------------------------------------------------------------------------------
-type state_machine is (setup, idle, read, check_root, insert_root, get_child_value, check_children, one, two, done);
-signal state     : state_machine := setup;
-signal current   : std_logic_vector(16 - 1 downto 0);   -- current value
-signal child1    : integer;                             -- location of child 1
-signal child2    : integer;                             -- location of child 2
-signal v_child1  : std_logic_vector(16 - 1 downto 0);   -- value of child 1
-signal v_child2  : std_logic_vector(16 - 1 downto 0);   -- value of child 2
-signal pointer   : integer := 0;                        -- pointer
-signal flag      : std_logic;                           -- signal to indicate start & end
+type state_machine is (setup, idle, read, check_root, insert_root, 
+                        get_child_value, check_children, one, two, done);
+signal state, next_state             : state_machine;
+signal root, next_root               : std_logic_vector(DataSize - 1 downto 0);
+signal current, next_current         : std_logic_vector(DataSize - 1 downto 0); -- current value
+signal child1, next_child1           : integer;                                 -- location of child 1
+signal child2, next_child2           : integer;                                 -- location of child 2
+signal v_child1, next_v_child1       : std_logic_vector(DataSize - 1 downto 0); -- value of child 1
+signal v_child2, next_v_child2       : std_logic_vector(DataSize - 1 downto 0); -- value of child 2
+signal pointer, next_pointer         : integer := 0;                            -- pointer
+signal flag, next_flag, next_ReadyIn : std_logic;                               -- signal to indicate start & end
+signal next_ValidOut                 : std_logic_vector(2 downto 0);
 
-type reg_type is array (15 - 1 downto 0) of std_logic_vector (16 - 1 downto 0); -- 16*15 bits
-signal ram : reg_type := (others => x"0000"); 
+signal ena, next_ena, enb, next_enb  : STD_LOGIC;
+signal wea, next_wea, web, next_web  : STD_LOGIC;
+signal addra, next_addra             : integer;
+signal addrb, next_addrb             : integer;
+signal dia, next_dia, dib, next_dib  : STD_LOGIC_VECTOR(15 DOWNTO 0);
+signal doa, next_doa, dob, next_dob  : STD_LOGIC_VECTOR(15 DOWNTO 0);
+
+--type reg_type is array ((2**ArrayAddressSize - 1) - 1 downto 0) of std_logic_vector (DataSize - 1 downto 0); -- 16*15 bits
+--signal ram : reg_type := (others => x"0000"); 
 
 begin
 
-process (all)
+    memory : Ram PORT MAP(clka => clk,
+                                  clkb => clk,
+                                  ena => ena,
+                                  enb => enb,
+                                  wea => wea,
+                                  web => web,
+                                  addra => addra,
+                                  addrb => addrb,
+                                  dia => dia,
+                                  dib => dib,
+                                  doa => doa,
+                                  dob => dob);
+
+process(all)
 begin
     if (reset = '1') then
         state <= setup;
+        root <= (others => '0');
+        pointer <= 0;
+        child1 <= 0;
+        child2 <= 0;
+        next_v_child1 <= (others => '0');
+        next_v_child2 <= (others => '0');
+        current <= (others => '0');
+        ReadyIn <= '0';
+        ena <= '0';
+        enb <= '0';
+        wea <= '0';
+        web <= '0';
+        addra <=  0;   
+        addrb <=  0;   
+        dia <= (others => '0');
+        dib <= (others => '0');
+        doa <= (others => '0');
+        dob <= (others => '0');
     elsif(rising_edge(clk)) then 
+        state <= next_state;
+        root <= next_root;
+        pointer <= next_pointer;
+        child1 <= next_child1;
+        child2 <= next_child2;
+        next_v_child1 <= v_child1;
+        next_v_child2 <= v_child2;
+        current <= next_current;
+        ReadyIn <= next_ReadyIn;
+        ValidOut <= next_ValidOut;
+        ena <= next_ena;
+        enb <= next_enb;
+        wea <= next_wea;
+        web <= next_web;
+        addra <= next_addra;          
+        addrb <= next_addrb;          
+        dia <= next_dia;
+        dib <= next_dib;
+        doa <= next_doa;
+        dob <= next_dob;
+    end if;
+end process;
 
-        case state is
+process (all)
+begin
+    next_addra <= 0;
+    next_dia <= (others => '0');
+    next_ena <= '0';
+    next_wea <= '0';
+    next_addrb <= 0;
+    next_dib <= (others => '0');
+    next_enb <= '0';
+    next_web <= '0';
+    case state is
 		when setup => -- prefilling
-            ReadyIn <= '0';     -- no data from outside
-            ram(pointer) <= x"8000";
-            pointer <= pointer + 1;
+            next_ReadyIn <= '0';     -- no data from outside
+            next_addra <= pointer;
+            next_dia <= x"8000";
+            next_ena <= '1';
+            next_wea <= '1';
+            next_pointer <= pointer + 1;
             if pointer = 14 then -- prefilling is done
-                state <= idle;
+                next_state <= idle;
             else
-                state <= setup;
+                next_state <= setup;
             end if;
         when idle =>
             if ValidIn(2) = '1' then 
-                state <= read;
-                ReadyIn <= '1';
+                next_state <= read;
+                next_ReadyIn <= '1';
             else
-                ReadyIn <= '0';
+                next_ReadyIn <= '0';
             end if;
         when read =>
-            ReadyIn <= '0';
-            current <= DataIn;
-            flag <= ValidIn(0);
+            next_ReadyIn <= '0';
+            next_current <= DataIn;
+            next_flag <= ValidIn(0);
+            next_root <= doa;
+            next_addra <= 0;
+            next_ena <= '1';
+            next_wea <= '0';
             if flag = '1' then -- it's the last value
-                state <= done;
+                next_state <= done;
             else
-                state <= check_root;
+                next_state <= check_root;
             end if;
         when check_root =>
-            if signed(current) > signed(ram(0)) then
-                state <= insert_root;
+            if signed(current) > signed(root) then
+                next_state <= insert_root;
             else
-                current <= current;
-                state <= read;
+                next_current <= current;
+                next_state <= read;
             end if;
         when insert_root =>
-            ram(0) <= current; -- current is bigger, perform swap
-            pointer <= 0;
-            child1 <= 1;
-            child2 <= 2;
-            state <= get_child_value;
+            next_addra <= 0;
+            next_dia <= current;
+            next_ena <= '1';
+            next_wea <= '1';
+            next_pointer <= 0;
+            next_child1 <= 1;
+            next_child2 <= 2;
+            next_state <= get_child_value;
         when get_child_value =>
-            v_child1 <= ram(child1);
-            v_child2 <= ram(child2);
-            state <= check_children;
+            next_v_child1 <= doa;
+            next_addra <= child1;
+            next_ena <= '1';
+            next_wea <= '0';
+            next_v_child2 <= dob;
+            next_addra <= child2;
+            next_ena <= '1';
+            next_wea <= '0';
+            next_state <= check_children;
         when check_children =>
             if signed(v_child1) <= signed(v_child2) then -- the left is smaller
                 if signed(v_child1) < signed(current) then 
-                    state <= one;
+                    next_state <= one;
                 else
-                    ReadyIn <= '1';
-                    state <= read;
+                    next_ReadyIn <= '1';
+                    next_state <= read;
                 end if;
             else
                 if signed(v_child2) < signed(current) then 
-                    state <= two;
+                    next_state <= two;
                 else
-                    ReadyIn <= '1';
-                    state <= read;
+                    next_ReadyIn <= '1';
+                    next_state <= read;
                 end if;
             end if;    
         when one =>
-            current <= current;
-            ram(child1) <= current;
-            ram(pointer) <= v_child1;
+            next_current <= current;
+            --ram(child1) <= current;
+            next_addra <= child1;
+            next_dia <= current;
+            next_ena <= '1';
+            next_wea <= '1';
+            --ram(pointer) <= v_child1;
+            next_addrb <= pointer;
+            next_dib <= v_child1;
+            next_enb <= '1';
+            next_web <= '1';
             if child1 < 7 then
-                pointer <= child1;
-                child1 <= pointer_calculator_1(child1);
-                child2 <= pointer_calculator_2(child1);
-                state <= get_child_value;
+                next_pointer <= child1;
+                next_child1 <= pointer_calculator_1(child1);
+                next_child2 <= pointer_calculator_2(child1);
+                next_state <= get_child_value;
             else
-                ReadyIn <= '1';
-                state <= read;
+                next_ReadyIn <= '1';
+                next_state <= read;
             end if;
         when two =>
-            current <= current;
-            ram(child2) <= current;
-            ram(pointer) <= v_child2;
+            next_current <= current;
+            --ram(child2) <= current;
+            next_addra <= child2;
+            next_dia <= current;
+            next_ena <= '1';
+            next_wea <= '1';
+            --ram(pointer) <= v_child2;
+            next_addrb <= pointer;
+            next_dib <= current;
+            next_enb <= '1';
+            next_web <= '1';
             if child2 < 8 then
-                pointer <= child2;
-                child1 <= pointer_calculator_1(child2);
-                child2 <= pointer_calculator_2(child2);
-                state <= get_child_value;
+                next_pointer <= child2;
+                next_child1 <= pointer_calculator_1(child2);
+                next_child2 <= pointer_calculator_2(child2);
+                next_state <= get_child_value;
             else
-                ReadyIn <= '1';
-                state <= read;
+                next_ReadyIn <= '1';
+                next_state <= read;
             end if;
         when done =>
-            ValidOut <= "100";
+            next_ValidOut <= "100";
         end case;
 		
-
-    end if;
 end process;
 end architecture;
