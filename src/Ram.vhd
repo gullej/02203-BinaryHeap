@@ -50,11 +50,13 @@ BEGIN
             IF ENA = '1' THEN
                 IF WEA = '1' THEN
                     RAM(ADDRA) := DIA;
+                ELSE
+                    DOA <= RAM(ADDRA);
                 END IF;
             END IF;
         END IF;
     END PROCESS;
-    DOA <= RAM(ADDRA);
+
 
     PROCESS (CLKB)
     BEGIN
@@ -62,10 +64,12 @@ BEGIN
             IF ENB = '1' THEN
                 IF WEB = '1' THEN
                     RAM(ADDRB) := DIB;
+                ELSE
+                    DOB <= RAM(ADDRB);
                 END IF;
             END IF;
         END IF;
     END PROCESS;
-    DOB <= RAM(ADDRB);
+
     
 END syn;
