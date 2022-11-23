@@ -98,8 +98,7 @@ signal state, next_state             : state_machine;
 signal current, next_current         : std_logic_vector(DataSize - 1 downto 0); -- current value
 signal child1, next_child1           : integer;                                 -- location of child 1
 signal child2, next_child2           : integer;                                 -- location of child 2
-signal v_child1, next_v_child1       : std_logic_vector(DataSize - 1 downto 0); -- value of child 1
-signal v_child2, next_v_child2       : std_logic_vector(DataSize - 1 downto 0); -- value of child 2
+signal child, next_child             : std_logic_vector(DataSize - 1 downto 0); -- value of child
 signal pointer, next_pointer         : integer := 0;                            -- pointer
 signal flag, next_flag, next_ReadyIn : std_logic;                               -- signal to indicate start & end
 signal next_ValidOut                 : std_logic_vector(2 downto 0);
@@ -137,8 +136,7 @@ begin
         pointer <= 0;
         child1 <= 0;
         child2 <= 0;
-        next_v_child1 <= (others => '0');
-        next_v_child2 <= (others => '0');
+        next_child <= (others => '0');
         current <= (others => '0');
         ReadyIn <= '0';
         ena <= '0';
@@ -155,8 +153,7 @@ begin
         pointer <= next_pointer;
         child1 <= next_child1;
         child2 <= next_child2;
-        next_v_child1 <= v_child1;
-        next_v_child2 <= v_child2;
+        child <= next_child;
         flag <= next_flag;
         current <= next_current;
         ReadyIn <= next_ReadyIn;
@@ -248,17 +245,12 @@ begin
         when check_children =>
             if signed(doa) < signed(dob) then -- the left is smaller
                 if signed(doa) < signed(current) then 
-                    next_addra <= child1;
-                    next_dia <= current;
+
+                    next_current <= current;
                     next_pointer <= child1;
+                    next_child <= doa;
                     next_child1 <= pointer_calculator_1(child1);
                     next_child2 <= pointer_calculator_2(child1);
-                    next_ena <= '1';
-                    next_wea <= '1';
-                    next_addrb <= pointer;
-                    next_dib <= doa;
-                    next_enb <= '1';
-                    next_web <= '1';
                     next_state <= one;
                 else
                     next_ReadyIn <= '1';
@@ -270,16 +262,11 @@ begin
             else
                 if signed(dob) < signed(current) then
                     next_addra <= child2;
-                    next_dia <= current;
+                    next_current <= current;
                     next_pointer <= child2;
+                    next_child <= dob;
                     next_child1 <= pointer_calculator_1(child2);
                     next_child2 <= pointer_calculator_2(child2);                    
-                    next_ena <= '1';
-                    next_wea <= '1';
-                    next_addrb <= pointer;
-                    next_dib <= doa;
-                    next_enb <= '1';
-                    next_web <= '1';
                     next_state <= two;
                 else
                     next_ReadyIn <= '1';
@@ -290,11 +277,17 @@ begin
                 end if;
             end if;    
         when one =>
-            next_current <= doa;
+            next_current <= child;
+            next_addra <= pointer;
+            next_ena <= '1';
+            next_wea <= '1';
+            next_dia <= current;
+            
+            next_addrb <= child1;
+            next_enb <= '1';
+            next_web <= '1';
+            next_dib <= child;
             if child1 < 7 then
-                next_pointer <= child1;
-                next_child1 <= pointer_calculator_1(child1);
-                next_child2 <= pointer_calculator_2(child1);
                 next_state <= read_child_values;
             else
                 next_ReadyIn <= '1';
@@ -305,10 +298,16 @@ begin
             end if;
         when two =>
             next_current <= dob;
+            next_addra <= child2;
+            next_ena <= '1';
+            next_wea <= '1';
+            next_dia <= current;
+
+            next_addrb <= pointer;
+            next_enb <= '1';
+            next_web <= '1';
+            next_dib <= child;
             if child2 < 8 then
-                next_pointer <= child2;
-                next_child1 <= pointer_calculator_1(child2);
-                next_child2 <= pointer_calculator_2(child2);
                 next_state <= read_child_values;
             else
                 next_ReadyIn <= '1';
