@@ -35,7 +35,7 @@ end rams_tdp_rf_rf;
 
 architecture syn of rams_tdp_rf_rf is
 
-    type ram_type is array (15 downto 0) of std_logic_vector(24 downto 0);
+    type ram_type is array (14 downto 0) of std_logic_vector(24 downto 0);
 
     shared variable RAM : ram_type;
 

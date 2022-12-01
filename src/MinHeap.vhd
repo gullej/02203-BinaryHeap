@@ -99,7 +99,9 @@
                                 Get_child_value ,
                                 Check_children  ,
                                 Update_child1   ,
-                                Update_child2   
+                                Update_child2   ,
+                                Done            ,
+                                Output_ram
                                 );
     
         signal state        :   state_machine;
@@ -146,6 +148,10 @@
         --------------------------------------------------------------
         signal done_flag            :   std_logic;
         signal done_flag_next       :   std_logic;
+        signal validOut_reg:   std_logic_vector(2 downto 0);  
+        signal validOut_reg_next :   std_logic_vector(2 downto 0);    
+        signal dataOut_next         :   std_logic_vector(DataOut'range);
+        signal indexOut_next        :   std_logic_vector(IndexOut'range);
     
     begin
     
@@ -191,6 +197,10 @@
                 child1_idx_reg  <=  child1_idx_reg_next;
                 child2_data_reg <=  child2_data_reg_next;
                 child2_idx_reg  <=  child2_idx_reg_next;
+                validOut_reg    <=  validOut_reg_next;
+                ValidOut        <=  validOut_reg;
+                DataOut         <=  dataOut_next;
+                IndexOut        <=  indexOut_next;
             end if;
         end process ; -- Registers
     
@@ -213,6 +223,9 @@
     
             Pointer_child1_next     <= Pointer_child1_next;
             Pointer_child2_next     <= Pointer_child2_next;
+
+            validOut_reg_next           <= validOut_reg_next;
+
             case state is
                 when Setup =>
                     Pointer_parent_next <= Pointer_parent + 1;
@@ -221,6 +234,7 @@
                     Write_ram_a         <= '1';
                     Pointer_child1_next <= (others => '0');
                     Pointer_child2_next <= (others => '0');
+                    validOut_reg_next   <= "000";
 
                     if Pointer_parent = std_logic_vector(to_unsigned(14,Pointer_parent'length)) then
                         Next_state <= Idle;
@@ -241,7 +255,7 @@
                     Addr_ram_a          <= Pointer_parent;
 
                     if done_flag = '1' then
-                        Next_state <= Idle;--Change!!
+                        Next_state <= Done;
                     else
                         Next_state <= Check_root;
                     end if;
@@ -276,10 +290,14 @@
                     if data_ram_a_o(15 downto 0) <= data_ram_b_o(15 downto 0) then
                         if data_ram_a_o(15 downto 0) < data_in_reg then
                             Next_state  <=  Update_child1;
+                        else
+                            Next_state  <=  Read_state;
                         end if;
                     else
                         if data_ram_b_o(15 downto 0) < data_in_reg then
                             Next_state  <=  Update_child2;
+                        else
+                            Next_state  <=  Read_state;
                         end if;
                     end if;
     
@@ -328,7 +346,50 @@
                     else
                         Next_state  <= Get_child_value;
                     end if;
+                
+                when Done =>
+
+                    ValidOut_reg_next  <= "100";
+                    DataOut_next   <= data_ram_a_o(15 downto 0);
+                    IndexOut_next  <= data_ram_a_o(24 downto 16);
+                    Addr_ram_a     <= Pointer_parent;
+
+                    if ReadyOut = '1' then
+                        Pointer_parent_next <= Pointer_parent + 1;
+                        Next_state <= Output_ram;
+                        
+                        Addr_ram_b          <= Pointer_parent;
+                        data_ram_b_i        <= (24 downto 16 => '0') & x"8000";
+                        Write_ram_b         <= '1';
+                    end if;
+
+                when Output_ram => 
+
+                    if unsigned(Pointer_parent) = to_unsigned(15,Pointer_parent'length) then    
+                        Next_state <= Idle;
+
+                    elsif (ReadyOut = '1') then
+                        Pointer_parent_next <= Pointer_parent + 1;
+
+                        Addr_ram_a     <= Pointer_parent;
     
+                        Addr_ram_b          <= Pointer_parent;
+                        data_ram_b_i        <= (24 downto 16 => '0') & x"8000";
+                        Write_ram_b         <= '1';
+
+                        if unsigned(Pointer_parent) = to_unsigned(14,Pointer_parent'length) then
+                            ValidOut_reg_next <= "001";
+                        else             
+                            ValidOut_reg_next <= "010";
+                        end if;
+
+                    end if;
+
+                    DataOut_next   <= data_ram_a_o(15 downto 0);
+                    IndexOut_next  <= data_ram_a_o(24 downto 16);
+
+             
+                        
                 when others =>        
             end case;
         end process ; -- Output_logic

@@ -67,7 +67,7 @@ architecture behaviour of MinHeap_tb is
     signal IndexOut: std_logic_vector(IndexSize-1 downto 0);
 
     -- state machine to drive input port.
-    type StateType is (init, input, done);
+    type StateType is (init, input, done, read, fin);
     signal state, state_next: StateType;
 
     -- InputTuple
@@ -159,6 +159,23 @@ VectorIndex_next <= VectorIndex;
             ValidIn  <= (others => '0');
             DataIn   <= (others => '0');
             IndexIn  <= (others => '0');
+
+            if ValidOut(2) = '1' then
+                State_next <= read;
+            end if;
+
+        when read =>
+
+            ReadyOut <= '1';
+
+            if ValidOut(0) = '1' then
+
+                State_next <= fin;
+            end if;
+
+        when fin =>
+            ReadyOut <= '0';
+
     end case;
 end process;
 end architecture;
