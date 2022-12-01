@@ -99,8 +99,7 @@
                                 Get_child_value ,
                                 Check_children  ,
                                 Update_child1   ,
-                                Update_child2   ,
-                                Wait_state
+                                Update_child2   
                                 );
     
         signal state        :   state_machine;
@@ -194,71 +193,6 @@
                 child2_idx_reg  <=  child2_idx_reg_next;
             end if;
         end process ; -- Registers
-        
-        Next_state_logic : process( ALL )
-        begin
-            case state is
-                when Setup =>
-                    if Pointer_parent = std_logic_vector(to_unsigned(14,Pointer_parent'length)) then
-                        Next_state <= Idle;
-                    end if;
-                when Idle =>
-                    if ValidIn(2) = '1' then
-                        Next_state  <= Read_state;
-                    end if;
-                when Read_state =>
-                    if done_flag = '1' then
-                        Next_state <= Idle;--Change!!
-                    else
-                        Next_state <= Check_root;
-                    end if;
-    
-                when Check_root =>
-                    if data_ram_a_o(15 downto 0) < data_in_reg then
-                        Next_state <= Insert_root;
-                    end if;
-    
-                when Insert_root =>
-                    Next_state <= Get_child_value;
-    
-                when Get_child_value =>
-                    Next_state  <= Check_children;
-    
-                when Check_children =>
-                    if data_ram_a_o(15 downto 0) <= data_ram_b_o(15 downto 0) then
-                        if data_ram_a_o(15 downto 0) < data_in_reg then
-                            Next_state  <=  Update_child1;
-                        end if;
-                    else
-                        if data_ram_b_o(15 downto 0) < data_in_reg then
-                            Next_state  <=  Update_child2;
-                        end if;
-                    end if;
-    
-                when Update_child1 =>
-                    if unsigned(Pointer_child1) > to_unsigned(6,Pointer_child1'length) 
-                    or unsigned(Pointer_child2) > to_unsigned(6,Pointer_child2'length) then
-                            Next_state  <= Read_state;
-                    else
-                        Next_state  <= Get_child_value;
-                    end if;
-    
-                when Update_child2 =>
-                    if unsigned(Pointer_child1) > to_unsigned(6,Pointer_child1'length) 
-                    or unsigned(Pointer_child2) > to_unsigned(6,Pointer_child2'length) then
-                        Next_state  <= Read_state;
-                    else
-                        Next_state  <= Get_child_value;
-                    end if;
-    
-                when Wait_state =>
-                        --Next_state <= Read_state;
-    
-                when others =>
-                    
-            
-            end case;
-        end process ; -- Next_state_logic
     
         Output_logic : process( ALL )
         begin
@@ -287,9 +221,17 @@
                     Write_ram_a         <= '1';
                     Pointer_child1_next <= (others => '0');
                     Pointer_child2_next <= (others => '0');
+
+                    if Pointer_parent = std_logic_vector(to_unsigned(14,Pointer_parent'length)) then
+                        Next_state <= Idle;
+                    end if;
     
                 when Idle =>
                     Pointer_parent_next <= (others => '0');
+
+                    if ValidIn(2) = '1' then
+                        Next_state  <= Read_state;
+                    end if;
                     
                 when Read_state =>
                     ReadyIn <= '1';
@@ -297,25 +239,49 @@
                     index_in_reg_next   <= IndexIn;
                     done_flag_next      <= ValidIn(0);
                     Addr_ram_a          <= Pointer_parent;
+
+                    if done_flag = '1' then
+                        Next_state <= Idle;--Change!!
+                    else
+                        Next_state <= Check_root;
+                    end if;
     
                 when Check_root =>
                     Pointer_child1_next <= Pointer_child1 + Pointer_child1 + 1;
                     Pointer_child2_next <= Pointer_child2 + Pointer_child2 + 2;
+
+                    if data_ram_a_o(15 downto 0) < data_in_reg then
+                        Next_state <= Insert_root;
+                    end if;
     
                 when Insert_root =>
                     data_ram_a_i    <=  index_in_reg_next & data_in_reg;
                     Write_ram_a     <=  '1';
                     Addr_ram_a      <=  (others => '0');
+
+                    Next_state <= Get_child_value;
     
                 when Get_child_value =>
                     Addr_ram_a  <=  Pointer_child1;
                     Addr_ram_b  <=  Pointer_child2;
+
+                    Next_state  <= Check_children;
     
                 when Check_children =>
                     child1_data_reg_next    <=  data_ram_a_o(DataIn'range);
                     child1_idx_reg_next     <=  data_ram_a_o(24 downto 16);
                     child2_data_reg_next    <=  data_ram_b_o(DataIn'range);
                     child2_idx_reg_next     <=  data_ram_b_o(24 downto 16);
+
+                    if data_ram_a_o(15 downto 0) <= data_ram_b_o(15 downto 0) then
+                        if data_ram_a_o(15 downto 0) < data_in_reg then
+                            Next_state  <=  Update_child1;
+                        end if;
+                    else
+                        if data_ram_b_o(15 downto 0) < data_in_reg then
+                            Next_state  <=  Update_child2;
+                        end if;
+                    end if;
     
                 when Update_child1 =>
                     Write_ram_a <= '1';
@@ -334,6 +300,10 @@
                         Pointer_parent_next <= (others => '0');
                         Pointer_child1_next <= (others => '0');
                         Pointer_child2_next <= (others => '0');
+
+                        Next_state  <= Read_state;
+                    else
+                        Next_state  <= Get_child_value;
                     end if;
     
                 when Update_child2 =>
@@ -353,7 +323,10 @@
                         Pointer_parent_next <= (others => '0');
                         Pointer_child1_next <= (others => '0');
                         Pointer_child2_next <= (others => '0');
-    
+
+                        Next_state  <= Read_state;
+                    else
+                        Next_state  <= Get_child_value;
                     end if;
     
                 when others =>        
